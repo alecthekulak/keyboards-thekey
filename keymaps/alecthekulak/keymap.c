@@ -55,16 +55,14 @@ unsigned short int n_pressed(void) {
   return (user_config.key_pressed.so + user_config.key_pressed.c + user_config.key_pressed.v);
 }
 void print_uconfig(void) {  
-  uprintf(" <<CONF>> so=%d; c=%d; v=%d; Action=%d; Pending=%d\n", user_config.key_pressed.so, user_config.key_pressed.c, user_config.key_pressed.v, user_config.action_taken, user_config.pending_action);  // ; raw:%u", user_config.raw
+  xprintf(" <<CONF>> so=%d; c=%d; v=%d; Action=%d; Pending=%d\n", user_config.key_pressed.so, user_config.key_pressed.c, user_config.key_pressed.v, user_config.action_taken, user_config.pending_action);  // ; raw:%u", user_config.raw
 }  // uprintf(" \\ - - layer state?  %u and %d\n", layer_state, layer_state);
 void log_key(char c_) {
   for (unsigned int i = sizeof(user_config.key_pressed.log) - 1; i > 0; i = i - 1) {
     user_config.key_pressed.log[i] = user_config.key_pressed.log[i - 1];
   }
   user_config.key_pressed.log[0] = c_; eeconfig_update_user(user_config.raw); 
-  if (c_ != '-') {
-    xprintf("Keystroke log: '%s'\n", user_config.key_pressed.log);
-  }
+  if (c_ != '-') { xprintf("Keystroke log: '%s'\n", user_config.key_pressed.log); }
 }
 void reset_config(void)  {   //  for (unsigned int i = sizeof(user_config.key_pressed.log); i > 0; i = i - 1) {
   // for (unsigned int i = 0; i < sizeof(user_config.key_pressed.log); i = i + 1) { user_config.key_pressed.log[i] = '_'; }
@@ -148,19 +146,17 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
       uprintln(" -- 'COPY_SEARCH' action queued to start in 0.8s..");
     }
   }
-  /*     Key Presses   */
+  /*     Key Presses     */
   switch (keycode) {
     case SO_KEY:
       if (record->event.pressed) {
         // uprintf("char log contents: %s\n", user_config.key_pressed.log);
-        user_config.key_pressed.so = true; //eeconfig_update_user(user_config.raw);
-        register_code(KC_LCTL); log_key('*');
-        println("/------ SO_KEY was pressed ------\\");
-        // print_uconfig();
+        register_code(KC_LCTL); user_config.key_pressed.so = true; //eeconfig_update_user(user_config.raw);
+         //log_key('*');
+        xprintf("/------ SO_KEY was pressed ------\\\n"); // print_uconfig();
       } else {
-        unregister_code(KC_LCTL); 
-        user_config.key_pressed.so = false; //eeconfig_update_user(user_config.raw);
-        println("\\------ SO_KEY was released ------/\n"); 
+        unregister_code(KC_LCTL); user_config.key_pressed.so = false; //eeconfig_update_user(user_config.raw);
+        xprintf("\\------ SO_KEY was released ------/\n"); 
       }  // return false; // Skip all further processing of this key
       break;   // return true; // Let QMK send the enter press/release events
     case C_KEY:
@@ -218,17 +214,14 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
       cancel_pending(); uprintln(" ~ ~ ~ VVCVC combo activated, sending WINDOWS+'L'!"); 
       // register_code(KC_RIGHT_GUI);  // register_code(KC_LEFT_GUI);
       clear_mods();
-      tap_code16(LWIN(KC_L)); user_config.action_taken = true; // tap_code_delay(KC_L, 50); user_config.action_taken = true;
+      tap_code16(LWIN(KC_L)); user_config.action_taken = true; log_key('|'); // tap_code_delay(KC_L, 50); user_config.action_taken = true;
       // unregister_code(KC_RIGHT_GUI); // tap_code_delay(KC_RIGHT_GUI, 400);
       // // // tap_code(KC_SYSTEM_SLEEP);  // <- makes whole system sleep, undesirable, we want just screen lock
-      uprintln(" ~ ~ ~ SENT!\n"); 
-      user_config.action_taken = true; log_key('|');
     } else if (c2 == 'C' && c1 == 'C' && c0=='C') { 
       cancel_pending(); uprintln(" ~ ~ ~ Three C-combo activated, sending CTRL+Z!"); 
       tap_code16(LCTL(KC_Z)); user_config.action_taken = true;  // log_key('|');   <- dont 
-      uprintln(" ~ ~ ~ SENT!\n"); 
     } 
-    if (user_config.action_taken) { eeconfig_update_user(user_config.raw); }
+    if (user_config.action_taken) { eeconfig_update_user(user_config.raw); xprintf(" ~ ~ ~ SENT!\n\n"); }
   }
 
   /*   Cleanup Code   */
@@ -238,11 +231,10 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     reset_config(); 
   } else if ( n_ == 0 ) {  //  && record->event.pressed == false
     extend_deferred_exec(user_config.pending_action, 5);
-    uprintln("Speeding up deferred execution (should fire in 5ms)");
+    println("Speeding up deferred execution (should fire in 5ms)");
   }
   return false;
 }
-
 // Enable debugging by default at beginning of run
 void keyboard_post_init_user(void) {
   // Customise these values to desired behaviour
