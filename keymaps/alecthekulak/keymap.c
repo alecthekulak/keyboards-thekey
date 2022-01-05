@@ -119,26 +119,26 @@ uint32_t _delay_copy_search(uint32_t trigger_time, void *cb_arg) {  //void *cb_a
     // print("  ### DELAY ACTION OCCURS HERE ###\n");
     // print(" ####  in delay_copy_search, returning 0...\n");
     ////////////////////////////
-    uprintln("\n --------- THIS IS THE DEFFERED ACTION ---------");
+    // uprintln("\n --------- THIS IS THE DEFFERED ACTION ---------");
     // copy_search(user_config);
     copy_search();
-    uprintln(" --------- FINISHED:   DEFFERED ACTION ---------\n");
-    user_config.action_taken = true; user_config.pending_action = INVALID_DEFERRED_TOKEN;
-    eeconfig_update_user(user_config.raw);
-    print_uconfig();
-    println("  --- about to return from _delay_copy_search ---  ");
-    return 0;
+    // uprintln(" --------- FINISHED:   DEFFERED ACTION ---------\n");
+    user_config.pending_action = INVALID_DEFERRED_TOKEN; log_key('|');
+      //user_config.action_taken = true; 
+    // print_uconfig();
+    println("  --- Returning from _delay_copy_search ---  ");
+    eeconfig_update_user(user_config.raw); return 0;
 }
 uint32_t _delay_c(uint32_t trigger_time, void *cb_arg) {  //void *cb_arg
     tap_code16(LCTL(KC_C));  // tap_code(KC_C);
     user_config.pending_action = INVALID_DEFERRED_TOKEN;  //user_config.action_taken = true; 
-    println(" -- _delay_c: COMPLETED");
+    println(" -- _delay_c: COMPLETED"); log_key('|');
     eeconfig_update_user(user_config.raw); return 0;
 }
 uint32_t _delay_v(uint32_t trigger_time, void *cb_arg) {  //void *cb_arg
     tap_code16(LCTL(KC_V));  // tap_code(KC_V);
     user_config.pending_action = INVALID_DEFERRED_TOKEN;  //user_config.action_taken = true; 
-    println(" -- _delay_v: COMPLETED");
+    println(" -- _delay_v: COMPLETED"); log_key('|');
     eeconfig_update_user(user_config.raw); return 0;
 }
 void cancel_pending(void) {
@@ -284,10 +284,14 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     // if ((c0 == 'V') && (c1 == 'V') && (c2 == 'V')) {
     if (c4 == 'V' && c3 == 'V' && c2 == 'C' && c1 == 'V' && c0=='C') {  // Code: CTRL+VVCVC
       cancel_pending(); uprintln(" ~ ~ ~ VVCVC combo activated, sending WINDOWS+'L'!"); 
-      register_code(KC_RIGHT_GUI);
-      // tap_code16(LWIN(KC_L)); user_config.action_taken = true;
-      tap_code_delay(KC_L, 50); user_config.action_taken = true;
-      unregister_code(KC_RIGHT_GUI);
+      // register_code(KC_RIGHT_GUI);
+      // register_code(KC_LEFT_GUI);
+      
+      clear_mods();
+      tap_code16(LWIN(KC_L)); user_config.action_taken = true;
+      // tap_code_delay(KC_L, 50); user_config.action_taken = true;
+      // unregister_code(KC_RIGHT_GUI);
+      // unregister_code(KC_RIGHT_GUI);
       // tap_code_delay(KC_RIGHT_GUI, 400);
       // // tap_code(KC_SYSTEM_SLEEP);  // <- makes whole system sleep, undesirable, we want just screen lock
       uprintln(" ~ ~ ~ SENT!\n"); 
