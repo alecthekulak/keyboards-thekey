@@ -64,9 +64,10 @@ void log_key(char c_) {
   for (unsigned int i = sizeof(user_config.key_pressed.log) - 1; i > 0; i = i - 1) {
     user_config.key_pressed.log[i] = user_config.key_pressed.log[i - 1];
   }
-  user_config.key_pressed.log[0] = c_;
-  xprintf("Keystroke log: '%s'\n", user_config.key_pressed.log);
-  eeconfig_update_user(user_config.raw); 
+  user_config.key_pressed.log[0] = c_; eeconfig_update_user(user_config.raw); 
+  if (c_ != '_') {
+    xprintf("Keystroke log: '%s'\n", user_config.key_pressed.log);
+  }
 }
 void reset_config(void)  {
   // for (unsigned int i = 0; i < sizeof(user_config.key_pressed.log); i = i + 1) {   //  for (unsigned int i = sizeof(user_config.key_pressed.log); i > 0; i = i - 1) {
@@ -84,42 +85,47 @@ void eeconfig_init_user(void) {  // EEPROM is getting reset!
   user_config.raw = 0; 
   for (unsigned int i = 0; i < sizeof(user_config.key_pressed.log); i = i + 1) {   //  for (unsigned int i = sizeof(user_config.key_pressed.log); i > 0; i = i - 1) {
     user_config.key_pressed.log[i] = '_';
-  }
-  reset_config();
+  }; reset_config();
 }
 
 
-bool copy_search(user_config_t conf) {
+// bool copy_search(user_config_t conf) {
+void copy_search(void) {
   timer = timer_read();  // Start it   // if (timer_elapsed(key_timer) < 100) {}
-  if (conf.key_pressed.so == false) {
-    tap_code16(LCTL(KC_C));
-  } 
+  // if (conf.key_pressed.so == false) {
+  //   tap_code16(LCTL(KC_C));
+  // } 
   // tap_code_delay(KC_LEFT_GUI, 1500);
   clear_mods();
   uprintf("%u Clicking windows button...\n", timer_elapsed(timer));  // KC_LEFT_GUI  // KC_APPLICATION
-  SEND_STRING(SS_TAP(X_WWW_SEARCH) SS_DELAY(400) "Chrome" SS_DELAY(225) SS_TAP(X_ENTER) SS_DELAY(500));
+  // SEND_STRING(SS_TAP(X_WWW_SEARCH) SS_DELAY(400) "Chrome" SS_DELAY(225) SS_TAP(X_ENTER) SS_DELAY(500));
   // tap_code_delay(KC_RIGHT_GUI, 400);
-  // uprintf("%u Typing 'Google Chrome'...\n", timer_elapsed(timer));
-  // SEND_STRING("Chrome" SS_DELAY(225) );
+  tap_code_delay(KC_WWW_SEARCH, 400);
+  uprintf("%u Typing 'Google Chrome'...\n", timer_elapsed(timer));
+  SEND_STRING("Chrome" SS_DELAY(225) SS_TAP(X_ENTER) "" SS_DELAY(500));
   // uprintf("%u Hitting 'ENTER'...\n", timer_elapsed(timer));
   // tap_code_delay(KC_ENTER, 500);
   uprintf("%u Hitting 'CTRL+V'...\n", timer_elapsed(timer));
-  tap_code16(LCTL(KC_V)); tap_code(KC_ENTER);
-  return true;
+  tap_code16(LCTL(KC_V)); 
+  uprintf("%u Hitting 'ENTER'...\n", timer_elapsed(timer));
+  tap_code(KC_ENTER);
+  uprintf("%u Finishing up...\n", timer_elapsed(timer));
+  // return true;
 }
-uint32_t delay_copy_search(uint32_t trigger_time, void *cb_arg) {  //void *cb_arg
+uint32_t _delay_copy_search(uint32_t trigger_time, void *cb_arg) {  //void *cb_arg
     // uprintf("in delay_copy_search, trigger_time: %u; cb_arg: %s\n", trigger_time, typeid(conf));  // KC_LEFT_GUI  // KC_APPLICATION
     // uprintf("  ####in delay_copy_search, trigger_time: %u\n", trigger_time);  // KC_LEFT_GUI  // KC_APPLICATION
     // // copy_search(cb_arg);
     // print("  ### DELAY ACTION OCCURS HERE ###\n");
-    // print_uconfig();
     // print(" ####  in delay_copy_search, returning 0...\n");
     ////////////////////////////
     uprintln("\n --------- THIS IS THE DEFFERED ACTION ---------");
-    copy_search(user_config);
-    // user_config.pending_action = 0;
-    user_config.action_taken = true;
+    // copy_search(user_config);
+    copy_search();
+    uprintln("\n --------- FINISHED:   DEFFERED ACTION ---------");
+    user_config.action_taken = true; user_config.pending_action = 0;
     eeconfig_update_user(user_config.raw);
+    print_uconfig();
     return 0;
 }
 
@@ -144,12 +150,11 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
   if (record->event.pressed) {
     xprintf("");
   } else {
-    // println("Key released, config stuff:");
     print_uconfig();
     println("");
-    // print("\n");
-    if ( user_config.pending_action == 0 && user_config.action_taken == false && user_config.key_pressed.v == true && user_config.key_pressed.c == true) {
-      deferred_token my_token = defer_exec(1000, delay_copy_search, NULL);
+    // if ( user_config.pending_action == 0 && user_config.action_taken == false && user_config.key_pressed.v == true && user_config.key_pressed.c == true) {
+    if ( user_config.pending_action == 0 && user_config.action_taken == false && n_pressed() == 3) {
+      deferred_token my_token = defer_exec(1000, _delay_copy_search, NULL);
       uprintln("Deferred action queued to start in 1Ss..");
       user_config.pending_action = my_token; log_key('|');
     }
@@ -256,18 +261,25 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     char c2 = user_config.key_pressed.log[2];
     char c3 = user_config.key_pressed.log[3]; 
     char c4 = user_config.key_pressed.log[4]; 
-    if ( user_config.pending_action != 0 ) {
+    if ( user_config.pending_action != 0 && (c0  == 'V' || c0 == 'C' || c0 == 'v' || c0 == 'c')) {
       extend_deferred_exec(user_config.pending_action, 500);
       uprintln("   Extending deferred action deadline by 0.5s");
     }  
     // if ((c0 == 'v' || c0 == 'V') && (c1 == 'v' || c1 == 'V') && (c2 == 'v' || c2 == 'V')) {
     // if ((c0 == 'V') && (c1 == 'V') && (c2 == 'V')) {
-    if ((c0 == 'V') && (c1 == 'V') && (c2 == 'C') && c3 == 'V' && c4=='C') {
+    if (c4 == 'V' && c3 == 'V' && c2 == 'C' && c1 == 'V' && c0=='C') {  // Code: CTRL+
+    // print_uconfig();
+    // print_uconfig();VVCVC
+    // print_uconfig();VVCVC
+      uprintln(" ~ ~ ~ Three V-combo activated!"); 
       if ( user_config.pending_action != 0 ) {
+        uprintln(" ~ ~ ~ Pending action exists, canceling it!"); 
         cancel_deferred_exec(user_config.pending_action); user_config.pending_action = 0;
       }
-      uprintln(" ~ ~ ~ Three V-combo activated!"); user_config.action_taken = true; log_key('|');
-      tap_code(KC_SYSTEM_SLEEP);
+      uprintln(" ~ ~ ~ About to send SYSTEM_SLEEP!"); 
+      tap_code(KC_SYSTEM_SLEEP); 
+      uprintln(" ~ ~ ~ SENT!"); 
+      user_config.action_taken = true; log_key('|');
     } 
   }
   /*   Cleanup Code   */
