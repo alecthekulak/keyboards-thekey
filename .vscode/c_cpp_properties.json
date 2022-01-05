@@ -1,0 +1,23 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/Users/alect/qmk_firmware/quantum/logging/*"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-msvc-x64", 
+            // This file isn't included in the real build (done by Cygwin make), but it
+            // affects how VSCode-cpptools parses the source.
+            "forcedInclude": ["${workspaceFolder}/.vscode/supress-warnings.h"]
+        }
+    ],
+    "version": 4
+}

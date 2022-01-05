@@ -32,7 +32,6 @@ enum custom_keycodes {
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
     // [0] = LAYOUT(KC_LCTL, LT(1, KC_C), KC_V),
-    // [0] = LAYOUT(SO_KEY, LT(1, KC_C), KC_V),
     [_BASE] = LAYOUT(SO_KEY, C_KEY, V_KEY),
     [_L_ONE] = LAYOUT(_______, _______, _______),
     // [1] = LAYOUT(LCTL(KC_X), _______, KC_A),
@@ -40,11 +39,11 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 };
 
 /*          Memory / Storage functionality          */
-static uint16_t timer;
+static uint16_t timer;  // uint64_t
 typedef union {
-  uint64_t raw;
-  bool action_taken;
+  uint_fast64_t raw;
   struct {
+    bool action_taken;
     struct {
       bool so;
       bool c;
@@ -54,34 +53,14 @@ typedef union {
     deferred_token pending_action;
   }; 
 } user_config_t; user_config_t user_config;
-// bool none_pressed(user_config_t conf) {
-//   return ( ( conf.key_pressed.so || conf.key_pressed.c || conf.key_pressed.v ) == false );
-// }
 unsigned short int n_pressed(void) {
   return (user_config.key_pressed.so + user_config.key_pressed.c + user_config.key_pressed.v);
 }
 void print_uconfig(user_config_t conf) {   //
-  uprintf(" / - - Config: so=%d; c=%d; v=%d; Action Taken:%d;  raw:%u \n", conf.key_pressed.so, conf.key_pressed.c, conf.key_pressed.v, conf.action_taken, conf.raw);
-  uprintf(" | - -  Pending:%d\n",  conf.pending_action);
-  uprintf(" \\ - - layer state?  %u and %d\n", layer_state, layer_state);
-}
-
-void reset_config(void)  {
-  for (unsigned int i = 0; i < sizeof(user_config.key_pressed.log); i = i + 1) {
-  // for (unsigned int i = sizeof(user_config.key_pressed.log); i > 0; i = i - 1) {
-    user_config.key_pressed.log[i] = '_';
-  }
-  user_config.key_pressed.so = false;  
-  user_config.key_pressed.c = false; 
-  user_config.key_pressed.v = false; 
-  user_config.action_taken = false;
-  user_config.pending_action = 0;
-  // user_config.char_log[] = "----------";
-  eeconfig_update_user(user_config.raw); // Write default value to EEPROM now
-}
-void eeconfig_init_user(void) {  // EEPROM is getting reset!
-  user_config.raw = 0; reset_config();
-}
+  uprintf(" / - - Config: so=%d; c=%d; v=%d; Action=%d; Pending=%d; raw:%u\n", conf.key_pressed.so, conf.key_pressed.c, conf.key_pressed.v, conf.action_taken, conf.pending_action, conf.raw);
+  // uprintf(" \\ - - Pending:%d\n",  conf.pending_action);
+  // uprintf(" \\ - - layer state?  %u and %d\n", layer_state, layer_state);
+}  
 void log_key(char c_) {
   for (unsigned int i = sizeof(user_config.key_pressed.log) - 1; i > 0; i = i - 1) {
     user_config.key_pressed.log[i] = user_config.key_pressed.log[i - 1];
@@ -90,6 +69,27 @@ void log_key(char c_) {
   uprintf("After addition: '%s'\n", user_config.key_pressed.log);
   eeconfig_update_user(user_config.raw); 
 }
+void reset_config(user_config_t conf)  {
+  // for (unsigned int i = 0; i < sizeof(user_config.key_pressed.log); i = i + 1) {   //  for (unsigned int i = sizeof(user_config.key_pressed.log); i > 0; i = i - 1) {
+  //   user_config.key_pressed.log[i] = '_';
+  // }
+  log_key('_');
+  conf.key_pressed.so = false;  
+  conf.key_pressed.c = false; 
+  conf.key_pressed.v = false; 
+  conf.action_taken = false;
+  conf.pending_action = 0;
+  // user_config.char_log[] = "----------";
+  eeconfig_update_user(conf.raw); // Write default value to EEPROM now
+}
+void eeconfig_init_user(void) {  // EEPROM is getting reset!
+  user_config.raw = 0; 
+  for (unsigned int i = 0; i < sizeof(user_config.key_pressed.log); i = i + 1) {   //  for (unsigned int i = sizeof(user_config.key_pressed.log); i > 0; i = i - 1) {
+    user_config.key_pressed.log[i] = '_';
+  }
+  reset_config(user_config);
+}
+
 
 
 uint32_t delay_copy_search(uint32_t trigger_time, void *cb_arg) {  //void *cb_arg
@@ -133,20 +133,26 @@ bool copy_search(user_config_t conf) {
 
 // Called when a key is pressed before it's handled, if return is `false`, then it will skip the normal evaluation of the key (i.e. it won't process that as a press of a 'C' character, etc.) also: process_record_kb()?
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+  // print("in process_record_user print\n");
+  // println("in process_record_user println");
+  // xprintf("in process_record_user xprint\n");
+  // uprintf("in post init user uprintf str:'%s' \n", user_config.key_pressed.log);
+
   // If console is enabled, it will print the matrix position and status of each key pressed
   // #ifdef CONSOLE_ENABLE
   //   uprintf("KL: kc: 0x%04X, CxR: %ux%u; pressed: %b, time: %u, interrupt: %b, count: %u\n", keycode, record->event.key.col, record->event.key.row, record->event.pressed, record->event.time, record->tap.interrupted, record->tap.count);
   // #endif 
  
   if (record->event.pressed) {
-    print("");
+    xprintf("");
   } else {
-    print("Key released, config stuff:\n");
+    // println("Key released, config stuff:");
     print_uconfig(user_config);
-    print("\n");
+    println("");
+    // print("\n");
     if ( user_config.pending_action == 0 && user_config.action_taken == false && user_config.key_pressed.v == true && user_config.key_pressed.c == true) {
       deferred_token my_token = defer_exec(1500, delay_copy_search, NULL);
-      print("Deferred action queued to start in 1.5S...\n");
+      uprintln("Deferred action queued to start in 1.5S...");
       user_config.pending_action = my_token; log_key('|');
     }
   }
@@ -183,12 +189,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 
 
   // } 
-  // if ( (record->event.pressed) == false && user_config.action_taken == false && user_config.key_pressed.v == true && user_config.key_pressed.c == true) {
-  //   print("\nAbout to start `copy_search`...\n/----------------------------\\\n");  // record->event.pressed && 
-  //   copy_search(user_config);
-  //   print("\\----------------------------/\nFinished running `copy_search`...\n");
-  //   eeconfig_update_user(user_config.raw);
-  // }  
+  
   /*     Key Presses   */
   switch (keycode) {
     case SO_KEY:
@@ -200,13 +201,13 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         register_code(KC_LCTL); log_key('*');
         // unsigned short int after = n_pressed();
         // uprintf("  (( pressed before: %u, after: %u \n", before, after);
-        print("/------ SO_KEY was pressed ------\\\n");
+        println("/------ SO_KEY was pressed ------\\");
         // print_uconfig(user_config);
         // SEND_STRING(" sending string SO key \n");
       } else {
         unregister_code(KC_LCTL); 
         user_config.key_pressed.so = false; //eeconfig_update_user(user_config.raw);
-        print("\\------ SO_KEY was released ------/\n");
+        println("\\------ SO_KEY was released ------/");
         // print_uconfig(user_config);
       }
       // return false; // Skip all further processing of this key
@@ -220,7 +221,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
       } else {
         if ( user_config.action_taken == false && user_config.pending_action == 0) {
           tap_code(KC_C); //user_config.action_taken = true;  // unregister_code(KC_C); 
-          print("  - KC_C was *tapped*\n");
+          println("  - KC_C was *tapped*");
         }
         user_config.key_pressed.c = false; //eeconfig_update_user(user_config.raw);
         // print("      \\_ KC_C was released\n");
@@ -235,14 +236,14 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         if ( user_config.action_taken == false && user_config.pending_action == 0 ) {
           // if user_config.key_pressed.
           tap_code(KC_V); //user_config.action_taken = true;  // unregister_code(KC_C); 
-          print("  - KC_V was *tapped*\n");
+          println("  - KC_V was *tapped*");
         }
         user_config.key_pressed.v = false; // print("      \\_ KC_V was released\n");
       }
       break;   // return true; // Let QMK send the enter press/release events
     default:
       if (record->event.pressed) {
-        uprintf(" !!!!!!!!! key pressed not defined for switch, keycode: 0x%04X \n", keycode);
+        uprintf(" !!!!!!!!! key pressed not defined for switch, keycode: 0x%04X\n", keycode);
       }
       // eeconfig_update_user(user_config.raw);
       // return true; // Process all other keycodes normally
@@ -255,19 +256,20 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     print("");
   } else {  // On release
     // uprintf("char log contents: %s\n", user_config.key_pressed.log);
-    // uprintf("char log 3 contents: %s\n", user_config.key_pressed.log[0]);
     /*  Multi-press definitions   */ 
     char c0 = user_config.key_pressed.log[0];
     char c1 = user_config.key_pressed.log[1];
     char c2 = user_config.key_pressed.log[2];
-    if ((c0 == 'v' || c0 == 'V') && (c1 == 'v' || c1 == 'V') && (c2 == 'v' || c2 == 'V')) {
-      cancel_deferred_exec(user_config.pending_action); user_config.pending_action = 0;
-      print(" ~ ~ ~ Three V-combo activated!"); user_config.action_taken = true;
-    } 
+    // char c3 = user_config.key_pressed.log[3];
     if ( user_config.pending_action != 0 ) {
       extend_deferred_exec(user_config.pending_action, 500);
-      print("   Extending deferred action deadline by 0.5s");
+      uprintln("   Extending deferred action deadline by 0.5s");
     }  
+    // if ((c0 == 'v' || c0 == 'V') && (c1 == 'v' || c1 == 'V') && (c2 == 'v' || c2 == 'V')) {
+    if ((c0 == 'V') && (c1 == 'V') && (c2 == 'V')) {
+      cancel_deferred_exec(user_config.pending_action); user_config.pending_action = 0;
+      uprintln(" ~ ~ ~ Three V-combo activated!"); user_config.action_taken = true;
+    } 
   }
   // // if (user_config.action_taken == false && n_ == 3) {
   // if (user_config.action_taken == false && user_config.key_pressed.v == true && user_config.key_pressed.c == true) {
@@ -275,15 +277,13 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
   //   copy_search();
   //   print("\\----------------------------/\nFinished running `copy_search`...\n");
   //   eeconfig_update_user(user_config.raw);
-  // // } else if (none_pressed(user_config)) {
   // } else 
   /*   Cleanup Code   */
   if ( n_ == 0 && user_config.pending_action == 0 ) {
-    // // print("    [No Buttons Pressed]\n");
-    reset_config();
-    // user_config.action_taken = false; //eeconfig_update_user(user_config.raw);
-    // eeconfig_update_user(user_config.raw);
-    // // print_uconfig(user_config);
+    // print("    [No Buttons Pressed]\n");
+    xprintf("    [No Buttons Pressed; No Pending Actions]\n"); print_uconfig(user_config);
+    reset_config(user_config); // print_uconfig(user_config);
+    xprintf("    Resetting user_config...\n"); print_uconfig(user_config);
   }
   // eeconfig_update_user(user_config.raw)
   // print("  !!! Here, about to return false \n");
@@ -300,7 +300,5 @@ void keyboard_post_init_user(void) {
 
   // Read the user config from EEPROM
   user_config.raw = eeconfig_read_user();
-  reset_config();
-  // print("Inside `keyboard_post_init_user`, enabling: debug_enable and dbug_matrix");
-  // xprintf("hello xprint");
+  // reset_config();
 }
