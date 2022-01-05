@@ -30,11 +30,10 @@ enum custom_keycodes {
 
 // Actual keyboard layout
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
-
     // [0] = LAYOUT(KC_LCTL, LT(1, KC_C), KC_V),
-    [_BASE] = LAYOUT(SO_KEY, C_KEY, V_KEY),
     // [_L_ONE] = LAYOUT(_______, _______, _______),
     // [1] = LAYOUT(LCTL(KC_X), _______, KC_A),
+    [_BASE] = LAYOUT(SO_KEY, C_KEY, V_KEY),
 
 };
 
@@ -52,12 +51,12 @@ typedef union {
     bool action_taken;
     deferred_token pending_action;
   }; 
-} user_config_t; user_config_t user_config;
+} user_config_t; static user_config_t user_config;
 unsigned short int n_pressed(void) {
   return (user_config.key_pressed.so + user_config.key_pressed.c + user_config.key_pressed.v);
 }
 void print_uconfig(void) {   //
-  uprintf(" <<< - - Config: so=%d; c=%d; v=%d; Action=%d; Pending=%d; raw:%u\n", user_config.key_pressed.so, user_config.key_pressed.c, user_config.key_pressed.v, user_config.action_taken, user_config.pending_action, user_config.raw);
+  uprintf(" <<CONF>> so=%d; c=%d; v=%d; Action=%d; Pending=%d\n", user_config.key_pressed.so, user_config.key_pressed.c, user_config.key_pressed.v, user_config.action_taken, user_config.pending_action);  // ; raw:%u", user_config.raw
   // uprintf(" \\ - - layer state?  %u and %d\n", layer_state, layer_state);
 }  
 void log_key(char c_) {
@@ -65,7 +64,7 @@ void log_key(char c_) {
     user_config.key_pressed.log[i] = user_config.key_pressed.log[i - 1];
   }
   user_config.key_pressed.log[0] = c_; eeconfig_update_user(user_config.raw); 
-  if (c_ != '_') {
+  if (c_ != '-') {
     xprintf("Keystroke log: '%s'\n", user_config.key_pressed.log);
   }
 }
@@ -73,8 +72,8 @@ void reset_config(void)  {
   // for (unsigned int i = 0; i < sizeof(user_config.key_pressed.log); i = i + 1) {   //  for (unsigned int i = sizeof(user_config.key_pressed.log); i > 0; i = i - 1) {
   //   user_config.key_pressed.log[i] = '_';
   // }
-  log_key('_');
-  user_config.pending_action = 0;
+  log_key('-');
+  user_config.pending_action = INVALID_DEFERRED_TOKEN;
   user_config.key_pressed.so = false;  
   user_config.key_pressed.c = false; 
   user_config.key_pressed.v = false; 
@@ -84,20 +83,21 @@ void reset_config(void)  {
 void eeconfig_init_user(void) {  // EEPROM is getting reset!
   user_config.raw = 0; 
   for (unsigned int i = 0; i < sizeof(user_config.key_pressed.log); i = i + 1) {   //  for (unsigned int i = sizeof(user_config.key_pressed.log); i > 0; i = i - 1) {
-    user_config.key_pressed.log[i] = '_';
+    user_config.key_pressed.log[i] = '-';
   }; reset_config();
 }
 
 
 // bool copy_search(user_config_t conf) {
-void copy_search(void) {
+void copy_search(void) {  // https://github.com/tmk/tmk_keyboard/issues/332#:~:text=No%20action-,WSCH,-Focus%20address%20bar
   timer = timer_read();  // Start it   // if (timer_elapsed(key_timer) < 100) {}
   // if (conf.key_pressed.so == false) {
   //   tap_code16(LCTL(KC_C));
   // } 
   // tap_code_delay(KC_LEFT_GUI, 1500);
   clear_mods();
-  uprintf("%u Clicking windows button...\n", timer_elapsed(timer));  // KC_LEFT_GUI  // KC_APPLICATION
+  uprintf("%u Clicking windows button...\n", timer_elapsed(timer));  // KC_LEFT_GUI  
+  // // KC_APPLICATION -> "Windows Context Menu" -> Right clicking on a webpage, etc. 
   // SEND_STRING(SS_TAP(X_WWW_SEARCH) SS_DELAY(400) "Chrome" SS_DELAY(225) SS_TAP(X_ENTER) SS_DELAY(500));
   // tap_code_delay(KC_RIGHT_GUI, 400);
   tap_code_delay(KC_WWW_SEARCH, 400);
@@ -122,13 +122,23 @@ uint32_t _delay_copy_search(uint32_t trigger_time, void *cb_arg) {  //void *cb_a
     uprintln("\n --------- THIS IS THE DEFFERED ACTION ---------");
     // copy_search(user_config);
     copy_search();
-    uprintln("\n --------- FINISHED:   DEFFERED ACTION ---------");
-    user_config.action_taken = true; user_config.pending_action = 0;
+    uprintln(" --------- FINISHED:   DEFFERED ACTION ---------\n");
+    user_config.action_taken = true; user_config.pending_action = INVALID_DEFERRED_TOKEN;
     eeconfig_update_user(user_config.raw);
     print_uconfig();
+    println("  --- about to return from _delay_copy_search ---  ");
     return 0;
 }
-
+uint32_t _delay_c(uint32_t trigger_time, void *cb_arg) {  //void *cb_arg
+    tap_code(KC_C);
+    user_config.action_taken = true; user_config.pending_action = INVALID_DEFERRED_TOKEN; eeconfig_update_user(user_config.raw);
+    return 0;
+}
+uint32_t _delay_v(uint32_t trigger_time, void *cb_arg) {  //void *cb_arg
+    tap_code(KC_V);
+    user_config.action_taken = true; user_config.pending_action = INVALID_DEFERRED_TOKEN; eeconfig_update_user(user_config.raw);
+    return 0;
+}
 
 
 
@@ -148,15 +158,18 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
   // #endif 
  
   if (record->event.pressed) {
-    xprintf("");
+    if ( user_config.pending_action != INVALID_DEFERRED_TOKEN && (keycode  == C_KEY || keycode == V_KEY)) {
+      extend_deferred_exec(user_config.pending_action, 200);
+      uprintln("   Extending deferred action deadline by 0.2s");
+    }  
+    // xprintf("");
   } else {
     print_uconfig();
-    println("");
+    // println("");
     // if ( user_config.pending_action == 0 && user_config.action_taken == false && user_config.key_pressed.v == true && user_config.key_pressed.c == true) {
-    if ( user_config.pending_action == 0 && user_config.action_taken == false && n_pressed() == 3) {
-      deferred_token my_token = defer_exec(1000, _delay_copy_search, NULL);
+    if ( user_config.pending_action == INVALID_DEFERRED_TOKEN && user_config.action_taken == false && n_pressed() == 3) {
+      deferred_token my_token = defer_exec(1000, _delay_copy_search, NULL); user_config.pending_action = my_token; log_key('|');
       uprintln("Deferred action queued to start in 1Ss..");
-      user_config.pending_action = my_token; log_key('|');
     }
   }
   // if ( (record->event.pressed) == false && user_config.action_taken == false && user_config.key_pressed.v == true && user_config.key_pressed.c == true) {
@@ -197,49 +210,49 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
   switch (keycode) {
     case SO_KEY:
       if (record->event.pressed) {
-        uprintf("char log contents: %s\n", user_config.key_pressed.log);
-        // print_uconfig();
-        // unsigned short int before = n_pressed();
+        // uprintf("char log contents: %s\n", user_config.key_pressed.log);
         user_config.key_pressed.so = true; //eeconfig_update_user(user_config.raw);
         register_code(KC_LCTL); log_key('*');
-        // unsigned short int after = n_pressed();
-        // uprintf("  (( pressed before: %u, after: %u \n", before, after);
         println("/------ SO_KEY was pressed ------\\");
         // print_uconfig();
         // SEND_STRING(" sending string SO key \n");
       } else {
         unregister_code(KC_LCTL); 
         user_config.key_pressed.so = false; //eeconfig_update_user(user_config.raw);
-        println("\\------ SO_KEY was released ------/");
-        // print_uconfig();
-      }
-      // return false; // Skip all further processing of this key
+        println("\\------ SO_KEY was released ------/\n");  // print_uconfig();
+      }  // return false; // Skip all further processing of this key
       break;   // return true; // Let QMK send the enter press/release events
     case C_KEY:
       if (record->event.pressed) {
         user_config.key_pressed.c = true; 
         (user_config.key_pressed.so == true)?log_key('C'):log_key('c');
       } else {
-        if ( user_config.action_taken == false && user_config.pending_action == 0) {
-          tap_code(KC_C); //user_config.action_taken = true;  // unregister_code(KC_C); 
-          // println("  - KC_C was *tapped*");
+
+        if ( user_config.action_taken == false && user_config.pending_action == INVALID_DEFERRED_TOKEN ) {
+          if (user_config.key_pressed.so) {
+            deferred_token my_token = defer_exec(250, _delay_c, NULL); user_config.pending_action = my_token; log_key('|'); log_key('C');
+          } else {
+            tap_code(KC_C); // log_key('c'); 
+          }
+          // (user_config.key_pressed.so == true)?log_key('C'):log_key('c');
         }
         user_config.key_pressed.c = false; //eeconfig_update_user(user_config.raw);
-        // print("      \\_ KC_C was released\n");
-      }
-      break;   // return true; // Let QMK send the enter press/release events
+      }; break;   // return true; // Let QMK send the enter press/release events
     case V_KEY:
       if (record->event.pressed) {
         user_config.key_pressed.v = true; //log_key('v'); //eeconfig_update_user(user_config.raw);
         (user_config.key_pressed.so == true)?log_key('V'):log_key('v'); 
       } else {
-        if ( user_config.action_taken == false && user_config.pending_action == 0 ) {
-          tap_code(KC_V); //user_config.action_taken = true;  // unregister_code(KC_C); 
-          // println("  - KC_V was *tapped*");
+        if ( user_config.action_taken == false && user_config.pending_action == INVALID_DEFERRED_TOKEN ) {
+          if (user_config.key_pressed.so) {
+            deferred_token my_token = defer_exec(250, _delay_v, NULL); user_config.pending_action = my_token; log_key('|'); log_key('V');
+          } else {
+            tap_code(KC_V); // log_key('v'); 
+          }
+          // (user_config.key_pressed.so == true)?log_key('V'):log_key('v'); 
         }
-        user_config.key_pressed.v = false; // print("      \\_ KC_V was released\n");
-      }
-      break;   // return true; // Let QMK send the enter press/release events
+        user_config.key_pressed.v = false; 
+      }; break;   // return true; // Let QMK send the enter press/release events
     default:
       if (record->event.pressed) {
         uprintf(" !!!!!!!!! key pressed not defined for switch, keycode: 0x%04X\n", keycode);
@@ -252,8 +265,8 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 
   /*   Combos / Behaviors   */
   if (record->event.pressed) {   // on click 
-    print("");
-  } else {  // On release
+    xprintf("");
+  } else if (user_config.action_taken == false) {  // On release
     // uprintf("char log contents: %s\n", user_config.key_pressed.log);
     /*  Multi-press definitions   */ 
     char c0 = user_config.key_pressed.log[0];
@@ -261,30 +274,33 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     char c2 = user_config.key_pressed.log[2];
     char c3 = user_config.key_pressed.log[3]; 
     char c4 = user_config.key_pressed.log[4]; 
-    if ( user_config.pending_action != 0 && (c0  == 'V' || c0 == 'C' || c0 == 'v' || c0 == 'c')) {
-      extend_deferred_exec(user_config.pending_action, 500);
-      uprintln("   Extending deferred action deadline by 0.5s");
-    }  
+    // if ( user_config.pending_action != INVALID_DEFERRED_TOKEN && (c0  == 'V' || c0 == 'C' || c0 == 'v' || c0 == 'c')) {
+    //   extend_deferred_exec(user_config.pending_action, 200);
+    //   uprintln("   Extending deferred action deadline by 0.2s");
+    // }  
     // if ((c0 == 'v' || c0 == 'V') && (c1 == 'v' || c1 == 'V') && (c2 == 'v' || c2 == 'V')) {
     // if ((c0 == 'V') && (c1 == 'V') && (c2 == 'V')) {
-    if (c4 == 'V' && c3 == 'V' && c2 == 'C' && c1 == 'V' && c0=='C') {  // Code: CTRL+
-    // print_uconfig();
-    // print_uconfig();VVCVC
-    // print_uconfig();VVCVC
-      uprintln(" ~ ~ ~ Three V-combo activated!"); 
-      if ( user_config.pending_action != 0 ) {
-        uprintln(" ~ ~ ~ Pending action exists, canceling it!"); 
-        cancel_deferred_exec(user_config.pending_action); user_config.pending_action = 0;
-      }
-      uprintln(" ~ ~ ~ About to send SYSTEM_SLEEP!"); 
-      tap_code(KC_SYSTEM_SLEEP); 
-      uprintln(" ~ ~ ~ SENT!"); 
+    if (c4 == 'V' && c3 == 'V' && c2 == 'C' && c1 == 'V' && c0=='C') {  // Code: CTRL+VVCVC
+      uprintln(" ~ ~ ~ VVCVC combo activated, sending WINDOWS+'L'!"); 
+      tap_code16(LWIN(KC_L)); user_config.action_taken = true;
+      // tap_code_delay(KC_RIGHT_GUI, 400);
+      // // tap_code(KC_SYSTEM_SLEEP);  // <- makes whole system sleep, undesirable, we want just screen lock
+      uprintln(" ~ ~ ~ SENT!\n"); 
       user_config.action_taken = true; log_key('|');
+    } else if (c2 == 'C' && c1 == 'C' && c0=='C') { 
+      uprintln(" ~ ~ ~ Three C-combo activated, sending CTRL+Z!"); 
+      tap_code16(LCTL(KC_Z)); user_config.action_taken = true;
+      uprintln(" ~ ~ ~ SENT!\n"); 
     } 
+    if (user_config.action_taken && (user_config.pending_action != INVALID_DEFERRED_TOKEN)) {
+        uprintln(" ~ ~ ~ Pending action exists, canceling it!"); 
+        cancel_deferred_exec(user_config.pending_action); user_config.pending_action = INVALID_DEFERRED_TOKEN;
+        eeconfig_update_user(user_config.raw);
+    }
   }
   /*   Cleanup Code   */
-  if ( n_ == 0 && user_config.pending_action == 0 ) {
-    // xprintf("    [No Buttons Pressed; No Pending Actions]\n"); print_uconfig();
+  if ( n_ == 0 && user_config.pending_action == INVALID_DEFERRED_TOKEN ) {
+    xprintf("    [No Buttons Pressed; No Pending Actions]\n"); // print_uconfig();
     reset_config(); 
     // xprintf("    Resetting user_config...\n"); print_uconfig();
   }
