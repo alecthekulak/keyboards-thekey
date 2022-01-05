@@ -3,6 +3,8 @@
 #pragma diag_suppress 1696
 // 20 - identifier is undefined [e.g. SAFE_RANGE, uint16_t]
 #pragma diag_suppress 20
+// 13 - expected a filename (from #include statements?)
+#pragma diag_suppress 13
 // // 165 - too few arguments in function call
 // #pragma diag_suppress 165
 // // 29  - expecting an expression
