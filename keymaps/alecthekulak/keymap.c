@@ -51,10 +51,10 @@ typedef union {
     deferred_token pending_action;
   }; 
 } user_config_t; static user_config_t user_config;
-unsigned short int n_pressed(void) {
+inline unsigned short int n_pressed(void) {
   return (user_config.key_pressed.so + user_config.key_pressed.c + user_config.key_pressed.v);
 }
-void print_uconfig(void) {  
+inline void print_uconfig(void) {  
   xprintf(" <<CONF>> so=%d; c=%d; v=%d; Action=%d; Pending=%d\n", user_config.key_pressed.so, user_config.key_pressed.c, user_config.key_pressed.v, user_config.action_taken, user_config.pending_action);  // ; raw:%u", user_config.raw
 }  // uprintf(" \\ - - layer state?  %u and %d\n", layer_state, layer_state);
 void log_key(char c_) {
